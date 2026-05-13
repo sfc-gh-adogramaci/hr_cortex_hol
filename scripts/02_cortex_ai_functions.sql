@@ -18,6 +18,7 @@ USE WAREHOUSE NATWEST_LAB_WH;
 -- Business Value: Automate job taxonomy mapping (currently takes weeks)
 ----------------------------------------------------------------------
 
+-- 2.1a: Preview classification on a small sample
 SELECT
     JOB_PROFILE,
     AI_CLASSIFY(
@@ -28,30 +29,36 @@ FROM REWARD_DATA
 WHERE JOB_PROFILE IS NOT NULL
 LIMIT 20;
 
--- Scale it: classify DISTINCT job profiles (~4,200) instead of all 60K rows
--- This reduces LLM calls from 60K to ~4.2K — a 14x speedup.
-WITH CLASSIFIED_PROFILES AS (
-    SELECT DISTINCT
+-- 2.1b: Scale demo — classify 100 random distinct profiles and aggregate
+-- (~100 LLM calls ≈ 1-2 minutes)
+WITH SAMPLED_PROFILES AS (
+    SELECT DISTINCT JOB_PROFILE
+    FROM REWARD_DATA
+    WHERE JOB_PROFILE IS NOT NULL
+    ORDER BY RANDOM()
+    LIMIT 100
+),
+CLASSIFIED AS (
+    SELECT
         JOB_PROFILE,
         AI_CLASSIFY(
             JOB_PROFILE,
             ['Operations', 'Technology', 'Risk & Compliance', 'Client Facing', 'Support', 'Management', 'Finance', 'Legal']
         ) AS ROLE_CATEGORY
-    FROM REWARD_DATA
-    WHERE JOB_PROFILE IS NOT NULL
+    FROM SAMPLED_PROFILES
 )
 SELECT
-    cp.ROLE_CATEGORY,
+    c.ROLE_CATEGORY,
     COUNT(*) AS HEADCOUNT,
     ROUND(AVG(r.CURRENT_SALARY), 0) AS AVG_SALARY
 FROM REWARD_DATA r
-JOIN CLASSIFIED_PROFILES cp ON r.JOB_PROFILE = cp.JOB_PROFILE
-GROUP BY cp.ROLE_CATEGORY
+JOIN CLASSIFIED c ON r.JOB_PROFILE = c.JOB_PROFILE
+GROUP BY c.ROLE_CATEGORY
 ORDER BY HEADCOUNT DESC;
 
--- TIP: In production, materialise the classification into a lookup table:
--- CREATE TABLE JOB_PROFILE_TAXONOMY AS SELECT DISTINCT ... (run once)
--- Then JOIN to it for all future queries — zero LLM calls needed.
+-- DISCUSSION: In production you would classify ALL ~4,200 distinct profiles
+-- once into a lookup table (CREATE TABLE JOB_PROFILE_TAXONOMY AS ...),
+-- then JOIN to it for instant queries with zero LLM calls.
 
 ----------------------------------------------------------------------
 -- Exercise 2.2: Structured Extraction with AI_EXTRACT
@@ -137,8 +144,14 @@ SELECT AI_COMPLETE(
 ----------------------------------------------------------------------
 -- Exercise 2.5: AI_AGG for Divisional Reward Summaries
 -- Business Value: Instant exec summaries (currently hours of manual work)
+--
+-- AI_AGG aggregates free-text across many rows into a single insight.
+-- Unlike AI_COMPLETE, it handles unlimited rows (auto-chunks internally).
+-- To keep this exercise fast, we scope to one division at a time.
 ----------------------------------------------------------------------
 
+-- 2.5a: Summarise reward patterns for a single division
+-- AI_AGG reads every row's text and synthesises a summary across all of them.
 SELECT
     DIVISION,
     COUNT(*) AS HEADCOUNT,
@@ -151,13 +164,47 @@ SELECT
             ', Pattern: ', WORKING_PATTERN,
             ', Discretionary: ', COALESCE(DISCRETIONARY_RATIONALE, 'N/A')
         ),
-        'Summarise the key reward patterns for this division in 2-3 sentences. Note any concerns about equity or outliers.'
+        'Summarise the key reward patterns in 2-3 sentences. Note any concerns about equity or outliers.'
     ) AS DIVISION_SUMMARY
 FROM REWARD_DATA
 WHERE HAS_SALARY_INCREASE = 1
+  AND DIVISION = 'Audit'
+GROUP BY DIVISION;
+
+-- 2.5b: Compare across the top 5 divisions by running AI_AGG on
+-- pre-sampled data (200 rows per division keeps it under 60 seconds)
+WITH SAMPLED AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY DIVISION ORDER BY RANDOM()) AS RN
+    FROM REWARD_DATA
+    WHERE HAS_SALARY_INCREASE = 1
+    QUALIFY RN <= 200
+)
+SELECT
+    DIVISION,
+    COUNT(*) AS SAMPLE_SIZE,
+    AI_AGG(
+        CONCAT(
+            'Level: ', LEVEL,
+            ', Salary: £', ROUND(CURRENT_SALARY, 0)::VARCHAR,
+            ', Increase: ', ROUND(SALARY_INCREASE_PCT * 100, 2)::VARCHAR, '%',
+            ', Pattern: ', WORKING_PATTERN,
+            ', Discretionary: ', COALESCE(DISCRETIONARY_RATIONALE, 'N/A')
+        ),
+        'Summarise the key reward patterns for this division in 2-3 sentences. Note any concerns about equity or outliers.'
+    ) AS DIVISION_SUMMARY
+FROM SAMPLED
 GROUP BY DIVISION
-ORDER BY HEADCOUNT DESC
-LIMIT 10;
+ORDER BY COUNT(*) DESC
+LIMIT 5;
+
+-- DISCUSSION: AI_AGG vs AI_COMPLETE for aggregation
+-- AI_AGG:      Reads EVERY row's text. Best when individual detail matters
+--              (e.g. free-text feedback, rationale fields, notes).
+-- AI_COMPLETE: Takes pre-aggregated stats. Best when you want to interpret
+--              numbers (e.g. avg salary, headcount, percentages).
+-- In production: sample or filter to keep AI_AGG fast; or pre-aggregate
+-- with SQL and use AI_COMPLETE for interpretation.
 
 ----------------------------------------------------------------------
 -- Exercise 2.6: AI_CLASSIFY for Ethnicity Pay Gap Flagging
