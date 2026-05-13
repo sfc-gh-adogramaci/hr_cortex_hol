@@ -8,6 +8,12 @@ USE SCHEMA REWARD;
 USE WAREHOUSE NATWEST_LAB_WH;
 
 ----------------------------------------------------------------------
+-- PERFORMANCE NOTE: Cortex AI functions make LLM calls per row.
+-- Bigger warehouses do NOT help — the bottleneck is LLM throughput.
+-- Key pattern: De-duplicate FIRST, classify distinct values, then JOIN.
+----------------------------------------------------------------------
+
+----------------------------------------------------------------------
 -- Exercise 2.1: Job Role Classification with AI_CLASSIFY
 -- Business Value: Automate job taxonomy mapping (currently takes weeks)
 ----------------------------------------------------------------------
@@ -22,18 +28,30 @@ FROM REWARD_DATA
 WHERE JOB_PROFILE IS NOT NULL
 LIMIT 20;
 
--- Scale it: classify all roles and see distribution
-SELECT
-    AI_CLASSIFY(
+-- Scale it: classify DISTINCT job profiles (~4,200) instead of all 60K rows
+-- This reduces LLM calls from 60K to ~4.2K — a 14x speedup.
+WITH CLASSIFIED_PROFILES AS (
+    SELECT DISTINCT
         JOB_PROFILE,
-        ['Operations', 'Technology', 'Risk & Compliance', 'Client Facing', 'Support', 'Management', 'Finance', 'Legal']
-    ) AS ROLE_CATEGORY,
+        AI_CLASSIFY(
+            JOB_PROFILE,
+            ['Operations', 'Technology', 'Risk & Compliance', 'Client Facing', 'Support', 'Management', 'Finance', 'Legal']
+        ) AS ROLE_CATEGORY
+    FROM REWARD_DATA
+    WHERE JOB_PROFILE IS NOT NULL
+)
+SELECT
+    cp.ROLE_CATEGORY,
     COUNT(*) AS HEADCOUNT,
-    ROUND(AVG(CURRENT_SALARY), 0) AS AVG_SALARY
-FROM REWARD_DATA
-WHERE JOB_PROFILE IS NOT NULL
-GROUP BY ROLE_CATEGORY
+    ROUND(AVG(r.CURRENT_SALARY), 0) AS AVG_SALARY
+FROM REWARD_DATA r
+JOIN CLASSIFIED_PROFILES cp ON r.JOB_PROFILE = cp.JOB_PROFILE
+GROUP BY cp.ROLE_CATEGORY
 ORDER BY HEADCOUNT DESC;
+
+-- TIP: In production, materialise the classification into a lookup table:
+-- CREATE TABLE JOB_PROFILE_TAXONOMY AS SELECT DISTINCT ... (run once)
+-- Then JOIN to it for all future queries — zero LLM calls needed.
 
 ----------------------------------------------------------------------
 -- Exercise 2.2: Structured Extraction with AI_EXTRACT
@@ -182,6 +200,23 @@ SELECT AI_COMPLETE(
 -- Business Value: Flag unusual compensation decisions for audit
 ----------------------------------------------------------------------
 
+-- Same pattern: pre-filter to a targeted subset with SQL FIRST,
+-- then let AI_FILTER evaluate only the suspicious candidates.
+-- Here we use statistical outliers (top 1% increase, or zero increase
+-- despite being eligible) to narrow 60K rows to ~600 before calling AI.
+
+WITH CANDIDATES AS (
+    SELECT *
+    FROM REWARD_DATA
+    WHERE (
+        SALARY_INCREASE_PCT > (
+            SELECT PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY SALARY_INCREASE_PCT)
+            FROM REWARD_DATA WHERE SALARY_INCREASE_PCT > 0
+        )
+    )
+    OR (HAS_SALARY_INCREASE = 0 AND SALARY_ELIGIBLE = 'Yes')
+    OR (DISCRETIONARY_RATIONALE ILIKE '%disciplinary%' AND DISCRETIONARY_AMOUNT > 0)
+)
 SELECT
     PYTHON_NUMBER,
     DIVISION,
@@ -190,7 +225,7 @@ SELECT
     SALARY_INCREASE_PCT,
     DISCRETIONARY_RATIONALE,
     DISCRETIONARY_AMOUNT
-FROM REWARD_DATA
+FROM CANDIDATES
 WHERE AI_FILTER(
     PROMPT(
         'Is this compensation decision unusual or potentially concerning? Employee at level {0} with salary £{1} received a {2}% increase with discretionary status: {3}',
