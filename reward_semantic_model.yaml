@@ -1,0 +1,427 @@
+name: NatWest Reward Analytics
+description: >
+  Semantic model for NatWest HR Reward data enabling natural language queries
+  about compensation, salary increases, bonuses, and workforce demographics.
+
+tables:
+  - name: reward_data
+    base_table:
+      database: NATWEST_HR_LAB
+      schema: REWARD
+      table: REWARD_DATA
+
+    description: >
+      Employee compensation and reward data for NatWest Group including salary,
+      increases, bonuses, discretionary awards, and demographic information.
+      Contains approximately 60,000 employee records.
+
+    dimensions:
+      - name: employee_id
+        description: Unique employee identifier (Python Number)
+        expr: PYTHON_NUMBER
+        data_type: TEXT
+        unique: true
+
+      - name: division
+        synonyms:
+          - "business unit"
+          - "department"
+          - "org"
+        description: The business division within NatWest Group
+        expr: DIVISION
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "NatWest Digital X"
+          - "Retail Banking"
+          - "C&I RFB"
+          - "Customer & Operations"
+          - "Private Banking & Wealth Management"
+
+      - name: ceo_1
+        synonyms:
+          - "executive"
+          - "CEO-1"
+          - "top level leader"
+          - "reporting line level 1"
+        description: First level reporting line (CEO direct report and their function)
+        expr: CEO_1
+        data_type: TEXT
+        unique: false
+
+      - name: ceo_2
+        synonyms:
+          - "CEO-2"
+          - "second level"
+          - "reporting line level 2"
+        description: Second level reporting line
+        expr: CEO_2
+        data_type: TEXT
+        unique: false
+
+      - name: ceo_3
+        synonyms:
+          - "CEO-3"
+          - "third level"
+          - "reporting line level 3"
+        description: Third level reporting line
+        expr: CEO_3
+        data_type: TEXT
+        unique: false
+
+      - name: level
+        synonyms:
+          - "grade"
+          - "band"
+          - "job level"
+        description: Employee grade/level (A=junior through F=most senior)
+        expr: LEVEL
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "A"
+          - "B"
+          - "C"
+          - "D"
+          - "E"
+          - "F"
+
+      - name: gender
+        description: Employee gender
+        expr: GENDER
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "Female"
+          - "Male"
+
+      - name: age_band
+        synonyms:
+          - "age"
+          - "age group"
+          - "age range"
+        description: Employee age band
+        expr: AGE
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "20 and under"
+          - "21 - 30"
+          - "31 - 40"
+          - "41 - 50"
+          - "51 - 60"
+          - "61 - 64"
+          - "65 and over"
+
+      - name: ethnicity
+        synonyms:
+          - "ethnic group"
+          - "ethnic background"
+        description: Detailed ethnicity classification
+        expr: ETHNICITY
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "Asian/Asian British"
+          - "Black/African/Caribbean/Black British"
+          - "Mixed"
+          - "Other"
+          - "White"
+
+      - name: ethnicity_group
+        synonyms:
+          - "BAME"
+          - "ethnicity summary"
+          - "diversity group"
+        description: Simplified ethnicity grouping (BAME, White, undisclosed)
+        expr: ETHNICITY_2
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "BAME"
+          - "White"
+          - "undisclosed"
+
+      - name: country
+        description: Country where employee is based
+        expr: COUNTRY
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "United Kingdom"
+          - "United States of America"
+          - "India"
+          - "Ireland"
+
+      - name: job_profile
+        synonyms:
+          - "job title"
+          - "role"
+          - "position"
+        description: Employee job profile/title
+        expr: JOB_PROFILE
+        data_type: TEXT
+        unique: false
+
+      - name: working_pattern
+        synonyms:
+          - "full time"
+          - "part time"
+          - "FTE status"
+        description: Working pattern (Full time or Part time)
+        expr: WORKING_PATTERN
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "Full time"
+          - "Part time"
+
+      - name: has_salary_increase
+        synonyms:
+          - "received increase"
+          - "got a raise"
+        description: Whether employee received a salary increase (1=yes, 0=no)
+        expr: HAS_SALARY_INCREASE
+        data_type: NUMBER
+        unique: false
+
+      - name: salary_eligible
+        synonyms:
+          - "eligible for increase"
+        description: Whether employee was eligible for salary increase
+        expr: SALARY_ELIGIBLE
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "Yes"
+          - "No"
+
+      - name: discretionary_rationale
+        synonyms:
+          - "bonus rationale"
+          - "discretionary reason"
+          - "performance status"
+        description: Rationale for discretionary bonus decision
+        expr: DISCRETIONARY_RATIONALE
+        data_type: TEXT
+        unique: false
+        sample_values:
+          - "Performing"
+          - "No bonus - Disciplinary sanction applied in year"
+          - "No bonus – Underperforming"
+
+    measures:
+      - name: headcount
+        synonyms:
+          - "number of employees"
+          - "employee count"
+          - "FTE count"
+          - "staff count"
+        description: Count of employees
+        expr: PYTHON_NUMBER
+        data_type: NUMBER
+        default_aggregation: count_distinct
+
+      - name: current_salary
+        synonyms:
+          - "base salary"
+          - "salary"
+          - "pay"
+          - "base pay"
+        description: Current annual salary in GBP
+        expr: CURRENT_SALARY
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: new_salary
+        synonyms:
+          - "revised salary"
+          - "updated salary"
+        description: New salary after increase
+        expr: NEW_SALARY
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: new_salary_fte
+        synonyms:
+          - "FTE equivalent salary"
+          - "full time equivalent salary"
+        description: New salary on full-time equivalent basis
+        expr: NEW_SALARY_FTE
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: salary_increase_pct
+        synonyms:
+          - "raise percentage"
+          - "increase percentage"
+          - "salary uplift"
+          - "pay rise"
+        description: Percentage salary increase (as decimal, e.g. 0.04 = 4%)
+        expr: SALARY_INCREASE_PCT
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: discretionary_amount
+        synonyms:
+          - "bonus amount"
+          - "discretionary bonus"
+          - "bonus value"
+        description: Discretionary bonus amount in GBP
+        expr: DISCRETIONARY_AMOUNT
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: discretionary_bonus_pct
+        synonyms:
+          - "bonus percentage"
+          - "bonus as percent of salary"
+        description: Discretionary bonus as percentage of salary
+        expr: DISCRETIONARY_BONUS_PCT
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: bonus_opportunity
+        synonyms:
+          - "target bonus"
+          - "bonus opportunity percentage"
+          - "bonus target"
+        description: Bonus opportunity as a percentage (e.g. 0.25 = 25%)
+        expr: BONUS_OPPORTUNITY
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: total_salary_cost
+        description: Total salary expenditure
+        expr: CURRENT_SALARY
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_new_salary_cost
+        description: Total new salary expenditure post-increase
+        expr: NEW_SALARY
+        data_type: NUMBER
+        default_aggregation: sum
+
+custom_instructions: |
+  - Salary values are in British Pounds (GBP £). Always format with £ symbol.
+  - Salary increase percentage is stored as a decimal (e.g., 0.04 means 4%). When displaying, multiply by 100.
+  - Bonus opportunity is stored as a decimal (e.g., 0.25 means 25%). When displaying, multiply by 100.
+  - Level A is the most junior, Level F is the most senior.
+  - BAME stands for Black, Asian, and Minority Ethnic.
+  - When asked about pay gaps, calculate the difference as (Group1_avg - Group2_avg) / Group1_avg * 100.
+  - For headcount queries, use COUNT(DISTINCT PYTHON_NUMBER).
+  - When no date filter is specified, include all records.
+
+verified_queries:
+  - name: "Average salary increase by level"
+    question: "What is the average salary increase percentage by level?"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+        LEVEL,
+        ROUND(AVG(SALARY_INCREASE_PCT) * 100, 2) AS avg_increase_pct,
+        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+      FROM __reward_data
+      WHERE HAS_SALARY_INCREASE = 1
+      GROUP BY LEVEL
+      ORDER BY LEVEL
+
+  - name: "Gender pay gap by division"
+    question: "Show me the gender pay gap by division"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+        DIVISION,
+        ROUND(AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END), 0) AS avg_male_salary,
+        ROUND(AVG(CASE WHEN GENDER = 'Female' THEN CURRENT_SALARY END), 0) AS avg_female_salary,
+        ROUND(
+          (AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END) -
+           AVG(CASE WHEN GENDER = 'Female' THEN CURRENT_SALARY END)) /
+          AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END) * 100, 2
+        ) AS gender_pay_gap_pct
+      FROM __reward_data
+      WHERE GENDER IS NOT NULL
+      GROUP BY DIVISION
+      ORDER BY gender_pay_gap_pct DESC
+
+  - name: "Employees with no salary increase"
+    question: "How many employees received no salary increase?"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+        COUNT(DISTINCT PYTHON_NUMBER) AS no_increase_count,
+        ROUND(COUNT(DISTINCT PYTHON_NUMBER) * 100.0 /
+              (SELECT COUNT(DISTINCT PYTHON_NUMBER) FROM __reward_data), 1) AS pct_of_total
+      FROM __reward_data
+      WHERE HAS_SALARY_INCREASE = 0
+
+  - name: "Bonus distribution by level"
+    question: "What is the bonus opportunity distribution across levels?"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+        LEVEL,
+        ROUND(AVG(BONUS_OPPORTUNITY) * 100, 1) AS avg_bonus_opportunity_pct,
+        ROUND(MIN(BONUS_OPPORTUNITY) * 100, 1) AS min_bonus_pct,
+        ROUND(MAX(BONUS_OPPORTUNITY) * 100, 1) AS max_bonus_pct,
+        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+      FROM __reward_data
+      GROUP BY LEVEL
+      ORDER BY LEVEL
+
+  - name: "Highest discretionary bonus spend"
+    question: "Which division has the highest discretionary bonus spend?"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+        DIVISION,
+        ROUND(SUM(DISCRETIONARY_AMOUNT), 0) AS total_discretionary_spend,
+        COUNT(DISTINCT PYTHON_NUMBER) AS headcount,
+        ROUND(AVG(DISCRETIONARY_BONUS_PCT) * 100, 2) AS avg_discretionary_pct
+      FROM __reward_data
+      WHERE DISCRETIONARY_AMOUNT > 0
+      GROUP BY DIVISION
+      ORDER BY total_discretionary_spend DESC
+
+  - name: "Part time vs full time salary comparison"
+    question: "Compare salaries between part time and full time employees"
+    sql: |
+      SELECT
+        WORKING_PATTERN,
+        LEVEL,
+        COUNT(DISTINCT PYTHON_NUMBER) AS headcount,
+        ROUND(AVG(CURRENT_SALARY), 0) AS avg_salary,
+        ROUND(AVG(NEW_SALARY_FTE), 0) AS avg_salary_fte,
+        ROUND(AVG(SALARY_INCREASE_PCT) * 100, 2) AS avg_increase_pct
+      FROM __reward_data
+      GROUP BY WORKING_PATTERN, LEVEL
+      ORDER BY LEVEL, WORKING_PATTERN
+
+  - name: "BAME pay gap analysis"
+    question: "What is the pay gap between BAME and White employees?"
+    sql: |
+      SELECT
+        LEVEL,
+        ROUND(AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END), 0) AS avg_white_salary,
+        ROUND(AVG(CASE WHEN ETHNICITY_2 = 'BAME' THEN CURRENT_SALARY END), 0) AS avg_bame_salary,
+        ROUND(
+          (AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END) -
+           AVG(CASE WHEN ETHNICITY_2 = 'BAME' THEN CURRENT_SALARY END)) /
+          AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END) * 100, 2
+        ) AS ethnicity_pay_gap_pct
+      FROM __reward_data
+      WHERE ETHNICITY_2 IN ('BAME', 'White')
+      GROUP BY LEVEL
+      ORDER BY LEVEL
+
+  - name: "Headcount by division and level"
+    question: "Show headcount breakdown by division and level"
+    sql: |
+      SELECT
+        DIVISION,
+        LEVEL,
+        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+      FROM __reward_data
+      GROUP BY DIVISION, LEVEL
+      ORDER BY DIVISION, LEVEL
