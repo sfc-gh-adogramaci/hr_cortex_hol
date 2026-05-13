@@ -6,6 +6,7 @@
 USE DATABASE NATWEST_HR_LAB;
 USE SCHEMA REWARD;
 USE WAREHOUSE NATWEST_LAB_WH;
+USE ROLE SYSADMIN;
 
 ----------------------------------------------------------------------
 -- Step 1: Upload the semantic model YAML to the stage
@@ -25,30 +26,36 @@ USE WAREHOUSE NATWEST_LAB_WH;
 LIST @SEMANTIC_MODEL_STAGE;
 
 ----------------------------------------------------------------------
--- Step 3: Create a Semantic View
+-- Step 3: Create a file format to read the YAML as raw text
 ----------------------------------------------------------------------
--- A Semantic View wraps the YAML model as a first-class Snowflake object.
--- This enables access via the Cortex Analyst playground in Snowsight.
+CREATE FILE FORMAT IF NOT EXISTS UTF8_FF
+    TYPE = 'CSV'
+    FIELD_DELIMITER = NONE
+    RECORD_DELIMITER = '\n';
 
-CREATE OR REPLACE SEMANTIC VIEW REWARD_SEMANTIC_VIEW
-  FROM @SEMANTIC_MODEL_STAGE/reward_semantic_model.yaml;
+----------------------------------------------------------------------
+-- Step 4: Create the Semantic View
+----------------------------------------------------------------------
+-- This reads the YAML from the stage, reassembles it into a single
+-- string, and creates the semantic view in the current schema.
+
+CALL SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML(
+    'NATWEST_HR_LAB.REWARD',
+    (SELECT LISTAGG($1, '\n') WITHIN GROUP (ORDER BY METADATA$FILE_ROW_NUMBER)
+     FROM @SEMANTIC_MODEL_STAGE/reward_semantic_model.yaml
+     (FILE_FORMAT => 'UTF8_FF'))
+);
 
 -- Verify it exists:
 SHOW SEMANTIC VIEWS IN SCHEMA REWARD;
 
 ----------------------------------------------------------------------
--- Step 4: Use Cortex Analyst in Snowsight
+-- Step 5: Use Cortex Analyst in Snowsight
 ----------------------------------------------------------------------
 -- 1. In Snowsight, navigate to: AI & ML > Cortex Analyst
--- 2. Select "REWARD_SEMANTIC_VIEW" from the dropdown
+-- 2. Select "NATWEST_REWARD_ANALYTICS" from the dropdown
 -- 3. You'll see onboarding questions (from verified_queries in the YAML)
 -- 4. Try asking questions in natural language!
---
--- The playground will:
---   - Interpret your question
---   - Generate SQL using the semantic model
---   - Execute the SQL and show results
---   - Offer suggested follow-up questions
 
 ----------------------------------------------------------------------
 -- Questions to try in the Cortex Analyst playground:
@@ -65,9 +72,9 @@ SHOW SEMANTIC VIEWS IN SCHEMA REWARD;
 -- 10. "What percentage of employees at Level D received a bonus?"
 
 ----------------------------------------------------------------------
--- Step 5 (Optional): Grant access to the semantic view
+-- Step 6 (Optional): Grant access to the semantic view
 ----------------------------------------------------------------------
 -- If participants need access via a shared role:
 /*
-GRANT SELECT ON SEMANTIC VIEW REWARD_SEMANTIC_VIEW TO ROLE NATWEST_LAB_ROLE;
+GRANT SELECT ON SEMANTIC VIEW NATWEST_REWARD_ANALYTICS TO ROLE NATWEST_LAB_ROLE;
 */
