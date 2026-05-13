@@ -1,4 +1,4 @@
-name: NatWest Reward Analytics
+name: NATWEST_REWARD_ANALYTICS
 description: >
   Semantic model for NatWest HR Reward data enabling natural language queries
   about compensation, salary increases, bonuses, and workforce demographics.
@@ -310,7 +310,7 @@ custom_instructions: |
   - Level A is the most junior, Level F is the most senior.
   - BAME stands for Black, Asian, and Minority Ethnic.
   - When asked about pay gaps, calculate the difference as (Group1_avg - Group2_avg) / Group1_avg * 100.
-  - For headcount queries, use COUNT(DISTINCT PYTHON_NUMBER).
+  - For headcount queries, use COUNT(DISTINCT employee_id).
   - When no date filter is specified, include all records.
 
 verified_queries:
@@ -319,30 +319,30 @@ verified_queries:
     use_as_onboarding_question: true
     sql: |
       SELECT
-        LEVEL,
-        ROUND(AVG(SALARY_INCREASE_PCT) * 100, 2) AS avg_increase_pct,
-        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+        level,
+        ROUND(AVG(salary_increase_pct) * 100, 2) AS avg_increase_pct,
+        COUNT(DISTINCT employee_id) AS headcount
       FROM __reward_data
-      WHERE HAS_SALARY_INCREASE = 1
-      GROUP BY LEVEL
-      ORDER BY LEVEL
+      WHERE has_salary_increase = 1
+      GROUP BY level
+      ORDER BY level
 
   - name: "Gender pay gap by division"
     question: "Show me the gender pay gap by division"
     use_as_onboarding_question: true
     sql: |
       SELECT
-        DIVISION,
-        ROUND(AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END), 0) AS avg_male_salary,
-        ROUND(AVG(CASE WHEN GENDER = 'Female' THEN CURRENT_SALARY END), 0) AS avg_female_salary,
+        division,
+        ROUND(AVG(CASE WHEN gender = 'Male' THEN current_salary END), 0) AS avg_male_salary,
+        ROUND(AVG(CASE WHEN gender = 'Female' THEN current_salary END), 0) AS avg_female_salary,
         ROUND(
-          (AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END) -
-           AVG(CASE WHEN GENDER = 'Female' THEN CURRENT_SALARY END)) /
-          AVG(CASE WHEN GENDER = 'Male' THEN CURRENT_SALARY END) * 100, 2
+          (AVG(CASE WHEN gender = 'Male' THEN current_salary END) -
+           AVG(CASE WHEN gender = 'Female' THEN current_salary END)) /
+          AVG(CASE WHEN gender = 'Male' THEN current_salary END) * 100, 2
         ) AS gender_pay_gap_pct
       FROM __reward_data
-      WHERE GENDER IS NOT NULL
-      GROUP BY DIVISION
+      WHERE gender IS NOT NULL
+      GROUP BY division
       ORDER BY gender_pay_gap_pct DESC
 
   - name: "Employees with no salary increase"
@@ -350,78 +350,78 @@ verified_queries:
     use_as_onboarding_question: true
     sql: |
       SELECT
-        COUNT(DISTINCT PYTHON_NUMBER) AS no_increase_count,
-        ROUND(COUNT(DISTINCT PYTHON_NUMBER) * 100.0 /
-              (SELECT COUNT(DISTINCT PYTHON_NUMBER) FROM __reward_data), 1) AS pct_of_total
+        COUNT(DISTINCT employee_id) AS no_increase_count,
+        ROUND(COUNT(DISTINCT employee_id) * 100.0 /
+              (SELECT COUNT(DISTINCT employee_id) FROM __reward_data), 1) AS pct_of_total
       FROM __reward_data
-      WHERE HAS_SALARY_INCREASE = 0
+      WHERE has_salary_increase = 0
 
   - name: "Bonus distribution by level"
     question: "What is the bonus opportunity distribution across levels?"
     use_as_onboarding_question: true
     sql: |
       SELECT
-        LEVEL,
-        ROUND(AVG(BONUS_OPPORTUNITY) * 100, 1) AS avg_bonus_opportunity_pct,
-        ROUND(MIN(BONUS_OPPORTUNITY) * 100, 1) AS min_bonus_pct,
-        ROUND(MAX(BONUS_OPPORTUNITY) * 100, 1) AS max_bonus_pct,
-        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+        level,
+        ROUND(AVG(bonus_opportunity) * 100, 1) AS avg_bonus_opportunity_pct,
+        ROUND(MIN(bonus_opportunity) * 100, 1) AS min_bonus_pct,
+        ROUND(MAX(bonus_opportunity) * 100, 1) AS max_bonus_pct,
+        COUNT(DISTINCT employee_id) AS headcount
       FROM __reward_data
-      GROUP BY LEVEL
-      ORDER BY LEVEL
+      GROUP BY level
+      ORDER BY level
 
   - name: "Highest discretionary bonus spend"
     question: "Which division has the highest discretionary bonus spend?"
     use_as_onboarding_question: true
     sql: |
       SELECT
-        DIVISION,
-        ROUND(SUM(DISCRETIONARY_AMOUNT), 0) AS total_discretionary_spend,
-        COUNT(DISTINCT PYTHON_NUMBER) AS headcount,
-        ROUND(AVG(DISCRETIONARY_BONUS_PCT) * 100, 2) AS avg_discretionary_pct
+        division,
+        ROUND(SUM(discretionary_amount), 0) AS total_discretionary_spend,
+        COUNT(DISTINCT employee_id) AS headcount,
+        ROUND(AVG(discretionary_bonus_pct) * 100, 2) AS avg_discretionary_pct
       FROM __reward_data
-      WHERE DISCRETIONARY_AMOUNT > 0
-      GROUP BY DIVISION
+      WHERE discretionary_amount > 0
+      GROUP BY division
       ORDER BY total_discretionary_spend DESC
 
   - name: "Part time vs full time salary comparison"
     question: "Compare salaries between part time and full time employees"
     sql: |
       SELECT
-        WORKING_PATTERN,
-        LEVEL,
-        COUNT(DISTINCT PYTHON_NUMBER) AS headcount,
-        ROUND(AVG(CURRENT_SALARY), 0) AS avg_salary,
-        ROUND(AVG(NEW_SALARY_FTE), 0) AS avg_salary_fte,
-        ROUND(AVG(SALARY_INCREASE_PCT) * 100, 2) AS avg_increase_pct
+        working_pattern,
+        level,
+        COUNT(DISTINCT employee_id) AS headcount,
+        ROUND(AVG(current_salary), 0) AS avg_salary,
+        ROUND(AVG(new_salary_fte), 0) AS avg_salary_fte,
+        ROUND(AVG(salary_increase_pct) * 100, 2) AS avg_increase_pct
       FROM __reward_data
-      GROUP BY WORKING_PATTERN, LEVEL
-      ORDER BY LEVEL, WORKING_PATTERN
+      GROUP BY working_pattern, level
+      ORDER BY level, working_pattern
 
   - name: "BAME pay gap analysis"
     question: "What is the pay gap between BAME and White employees?"
     sql: |
       SELECT
-        LEVEL,
-        ROUND(AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END), 0) AS avg_white_salary,
-        ROUND(AVG(CASE WHEN ETHNICITY_2 = 'BAME' THEN CURRENT_SALARY END), 0) AS avg_bame_salary,
+        level,
+        ROUND(AVG(CASE WHEN ethnicity_group = 'White' THEN current_salary END), 0) AS avg_white_salary,
+        ROUND(AVG(CASE WHEN ethnicity_group = 'BAME' THEN current_salary END), 0) AS avg_bame_salary,
         ROUND(
-          (AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END) -
-           AVG(CASE WHEN ETHNICITY_2 = 'BAME' THEN CURRENT_SALARY END)) /
-          AVG(CASE WHEN ETHNICITY_2 = 'White' THEN CURRENT_SALARY END) * 100, 2
+          (AVG(CASE WHEN ethnicity_group = 'White' THEN current_salary END) -
+           AVG(CASE WHEN ethnicity_group = 'BAME' THEN current_salary END)) /
+          AVG(CASE WHEN ethnicity_group = 'White' THEN current_salary END) * 100, 2
         ) AS ethnicity_pay_gap_pct
       FROM __reward_data
-      WHERE ETHNICITY_2 IN ('BAME', 'White')
-      GROUP BY LEVEL
-      ORDER BY LEVEL
+      WHERE ethnicity_group IN ('BAME', 'White')
+      GROUP BY level
+      ORDER BY level
 
   - name: "Headcount by division and level"
     question: "Show headcount breakdown by division and level"
     sql: |
       SELECT
-        DIVISION,
-        LEVEL,
-        COUNT(DISTINCT PYTHON_NUMBER) AS headcount
+        division,
+        level,
+        COUNT(DISTINCT employee_id) AS headcount
       FROM __reward_data
-      GROUP BY DIVISION, LEVEL
-      ORDER BY DIVISION, LEVEL
+      GROUP BY division, level
+      ORDER BY division, level
