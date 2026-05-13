@@ -213,15 +213,16 @@ Try these (and make up your own):
 ## Files Included
 
 ```
-natwest_hr_lab/
+hr_cortex_hol/
 ├── scripts/
-│   ├── 01_setup.sql              -- Database & table creation, data load
+│   ├── 01_setup.sql               -- Database & table creation, data load
 │   ├── 02_cortex_ai_functions.sql -- Module 2 exercises
-│   └── 03_cortex_analyst_setup.sql -- Semantic model deployment
+│   ├── 03_cortex_analyst_setup.sql -- Semantic model deployment
+│   └── 04_teardown.sql            -- Clean up lab resources
 ├── semantic_model/
 │   └── reward_semantic_model.yaml -- Cortex Analyst semantic model
 ├── streamlit_app/
 │   └── app.py                     -- Streamlit dashboard application
 ├── reward_data.csv                -- Synthetic data (upload to stage)
-└── LAB_GUIDE.md                   -- This file
+└── README.md                      -- This file
 ```
